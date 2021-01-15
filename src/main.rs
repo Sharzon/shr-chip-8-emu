@@ -5,11 +5,11 @@ use std::io::Read;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() == 0 {
+    if args.len() < 2 {
         println!("Please, give a file name");
         return;
     }
-    read_file(&args[0]);
+    read_file(&args[1]);
 }
 
 fn read_file (filename: &String) -> io::Result<()> {
