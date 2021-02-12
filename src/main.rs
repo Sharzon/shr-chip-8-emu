@@ -2,6 +2,12 @@ use std::env;
 use std::io;
 // Why must we import trait?
 use std::io::Read;
+use std::cmp;
+
+const SCREEN_HEIGHT: usize = 32;
+const SCREEN_WIDTH: usize = 64;
+
+type Screen = [[u8; SCREEN_WIDTH / 8]; SCREEN_HEIGHT];
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -36,7 +42,7 @@ fn read_file (filename: &String) -> io::Result<Vec<u8>> {
 fn run (program: Vec<u8>) {
     let mut memory = init_memory(program);
     // todo: make state structure?
-    let mut screen: [[u8; 64]; 32] = [[1; 64]; 32];
+    let mut screen: Screen = [[1; SCREEN_WIDTH / 8]; SCREEN_HEIGHT];
     let mut program_counter = 0x200;
     let mut index_reg = 0;
     let mut var_regs: [u8; 16] = [0; 16];
@@ -63,12 +69,19 @@ fn run (program: Vec<u8>) {
             let reg_number = usize::from(first - 0x70);
             var_regs[reg_number] += second;
         } else if (first >> 4) == 0xD {
-            let x = var_regs[usize::from(first & 0x0F)];
-            let y = var_regs[usize::from(second >> 4)];
-            let rows = second & 0x0F;
-            draw();
+            let vx = var_regs[usize::from(first & 0x0F)];
+            let vy = var_regs[usize::from(second >> 4)];
+            let rows_amount = second & 0x0F;
+            draw(vx, vy, rows_amount, &mut var_regs[0xf], &mut memory, index_reg, &mut screen);
+        }
+
+        // Just for IBM Logo testing
+        if program_counter >= 552 {
+            break;
         }
     }
+
+    draw_screen(screen);
 }
 
 fn init_memory (mut program: Vec<u8>) -> Vec<u8> {
@@ -100,7 +113,7 @@ fn init_memory (mut program: Vec<u8>) -> Vec<u8> {
     memory
 }
 
-fn clear_screen (screen: &mut [[u8; 64]; 32]) {
+fn clear_screen (screen: &mut Screen) {
     for line in screen.iter_mut() {
         for px in line.iter_mut() {
             *px = 0;
@@ -108,6 +121,54 @@ fn clear_screen (screen: &mut [[u8; 64]; 32]) {
     }
 }
 
-fn draw () {
-    todo!()
+fn draw (
+    vx: u8,
+    vy: u8,
+    n: u8,
+    vf: &mut u8,
+    memory: &Vec<u8>,
+    index_reg: usize,
+    screen: &mut Screen
+) {
+    let x = vx % (SCREEN_WIDTH as u8);
+    let mut y = (vy as usize) % SCREEN_HEIGHT;
+    *vf = 0;
+
+    let n = n as usize;
+    let n = cmp::min(n, SCREEN_HEIGHT - n);
+    for row in &memory[index_reg..index_reg+n] {
+        let column_byte_i = usize::from(x / 8);
+        
+        let first_sprite = row >> (x % 8);
+        
+        let first_screen = &mut screen[y][column_byte_i];
+        if (first_sprite & *first_screen) > 0 {
+            *vf = 1;
+        }
+        *first_screen ^= first_sprite;
+        
+        if x % 8 != 0 {
+            let second_sprite = row << (8 - x % 8);
+
+            let second_screen = &mut screen[y][column_byte_i+1];
+            if (second_sprite & *second_screen) > 0 {
+                *vf = 1;
+            }
+            *second_screen ^= second_sprite;
+        }
+
+        y += 1;
+    }
+}
+
+fn draw_screen (screen: Screen) {
+    for i in 0..screen.len() {
+        let row = screen[i];
+        let mut full_row: u64 = 0;
+        for j in 0..row.len() {
+            full_row = (full_row << 8) + u64::from(row[j]);
+        }
+
+        println!("{:064b}", !full_row);
+    }
 }
