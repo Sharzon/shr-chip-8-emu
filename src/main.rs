@@ -3,23 +3,62 @@ use std::io;
 // Why must we import trait?
 use std::io::Read;
 use std::cmp;
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
+use winit::dpi::LogicalSize;
+use pixels::{Error, Pixels, SurfaceTexture};
 
+const WINDOW_WIDTH: u32 = 320;
+const WINDOW_HEIGHT: u32 = 240;
 const SCREEN_HEIGHT: usize = 32;
 const SCREEN_WIDTH: usize = 64;
 
 type Screen = [[u8; SCREEN_WIDTH / 8]; SCREEN_HEIGHT];
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        println!("Please, give a file name");
-        return;
-    }
+fn main() -> Result<(), Error> {
+    let event_loop = EventLoop::new();
+    // let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let window = {
+        let size = LogicalSize::new(WINDOW_WIDTH as f64, WINDOW_HEIGHT as f64);
+        WindowBuilder::new()
+            .with_title("SHR CHIP-8 emulator")
+            .with_inner_size(size)
+            .with_min_inner_size(size)
+            .build(&event_loop)
+            .unwrap()
+    };
 
-    match read_file(&args[1]) {
-        Ok(program) => run(program),
-        Err(err) => eprintln!("Troubles with file reading: {}", err)
-    }
+    let mut pixels = {
+        let window_size = window.inner_size();
+        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+        Pixels::new(WINDOW_WIDTH, WINDOW_HEIGHT, surface_texture)?
+    };
+
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                window_id,
+            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            _ => (),
+        }
+    });
+
+    // let args: Vec<String> = env::args().collect();
+    // if args.len() < 2 {
+    //     println!("Please, give a file name");
+    //     return;
+    // }
+
+    // match read_file(&args[1]) {
+    //     Ok(program) => run(program),
+    //     Err(err) => eprintln!("Troubles with file reading: {}", err)
+    // }
 }
 
 fn read_file (filename: &String) -> io::Result<Vec<u8>> {

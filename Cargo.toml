@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 winit = "^0.24.0"
+pixels = "^0.2.0"
